@@ -2,9 +2,9 @@ var express = require("express");
 
 var application = express();
 
-// application.configure(function() {
-//     application.use(application.router);
-// });
+application.configure(function() {
+    application.use(express.static(__dirname + "/public"));
+});
 
 var routes = require("./routes");
 

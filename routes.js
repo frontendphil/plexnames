@@ -1,5 +1,7 @@
 var plex = require("plex-api");
-var client = new plex("localhost");
+var config = require("./config");
+
+var client = new plex(config.NAS_IP);
 
 var createSemaphore = function(clb) {
     var wait = 0;
@@ -12,14 +14,18 @@ var createSemaphore = function(clb) {
             wait = wait - 1;
 
             if(wait === 0) {
-                clb()
+                clb();
             }
         }
-    }
-}
+    };
+};
 
 exports.setup = function(application) {
     application.get("/", function(request, response) {
+        response.render("./public/index.html");
+    });
+
+    application.get("/list", function(request, response) {
         var files = [];
 
         var semaphore = createSemaphore(function() {
@@ -39,12 +45,24 @@ exports.setup = function(application) {
 
                                 video.media.forEach(function(media) {
                                     var resolution = media.attributes.videoResolution;
-                                    var container = media.attributes.container;
                                     var frameRate = media.attributes.videoFrameRate;
 
                                     var streams = [];
 
-                                    media.part.forEach(function(part) {
+                                    var count = false;
+                                    var length;
+
+                                    if(media.part.length > 1) {
+                                        count = true;
+                                        length = media.part.length;
+                                    }
+
+                                    media.part.forEach(function(part, index) {
+                                        var original = part.attributes.file;
+
+                                        var basePath = original.slice(0, original.lastIndexOf("/"));
+                                        var extension = original.slice(original.lastIndexOf("."));
+
                                         part.stream.forEach(function(stream) {
                                             if(stream.attributes.streamType !== "2") {
                                                 // No audio stream
@@ -71,16 +89,22 @@ exports.setup = function(application) {
 
                                             streams.push(streamId);
                                         });
+
+                                        var filename = [
+                                            title + (count ? " " + (index + 1) + " of " + length : ""),
+                                            year,
+                                            resolution + frameRate.slice(frameRate.length - 1),
+                                            streams.sort().join(" ")
+                                        ].join(" ") + extension;
+
+                                        filename = filename.replace(/[\\/]/, " -");
+
+                                        files.push({
+                                            path: basePath,
+                                            original: original.slice(original.lastIndexOf("/") + 1),
+                                            renamed: filename
+                                        });
                                     });
-
-                                    var filename = [
-                                        title,
-                                        year,
-                                        resolution + frameRate.slice(frameRate.length - 1),
-                                        streams.sort().join(" ")
-                                    ].join(" ") + "." + container;
-
-                                    files.push(filename);
                                 });
                             });
 
